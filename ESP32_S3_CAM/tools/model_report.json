@@ -1,0 +1,287 @@
+{
+  "model_file": "models\\potato_int8.tflite",
+  "model_bytes": 19136,
+  "sha256": "279637e660d77f8fd4343857b7b3fe1568c7da61a67816d94ea60d304067eb3d",
+  "file_identifier": "TFL3",
+  "schema_version": 3,
+  "subgraphs": 1,
+  "buffers": 38,
+  "operator_codes": [
+    {
+      "name": "CONV_2D",
+      "builtin_code": 3,
+      "version": 3,
+      "custom": null
+    },
+    {
+      "name": "MAX_POOL_2D",
+      "builtin_code": 17,
+      "version": 2,
+      "custom": null
+    },
+    {
+      "name": "DEPTHWISE_CONV_2D",
+      "builtin_code": 4,
+      "version": 3,
+      "custom": null
+    },
+    {
+      "name": "MEAN",
+      "builtin_code": 40,
+      "version": 2,
+      "custom": null
+    },
+    {
+      "name": "FULLY_CONNECTED",
+      "builtin_code": 9,
+      "version": 4,
+      "custom": null
+    },
+    {
+      "name": "SOFTMAX",
+      "builtin_code": 25,
+      "version": 2,
+      "custom": null
+    }
+  ],
+  "inputs": [
+    {
+      "index": 0,
+      "name": "serving_default_rgb888_0_to_255:0",
+      "shape": [
+        1,
+        96,
+        96,
+        3
+      ],
+      "type": "INT8",
+      "bytes": 27648,
+      "buffer": 1,
+      "scale": [
+        1.0
+      ],
+      "zero_point": [
+        -128
+      ],
+      "per_channel": false
+    }
+  ],
+  "outputs": [
+    {
+      "index": 34,
+      "name": "StatefulPartitionedCall_1:0",
+      "shape": [
+        1,
+        2
+      ],
+      "type": "INT8",
+      "bytes": 2,
+      "buffer": 35,
+      "scale": [
+        0.00390625
+      ],
+      "zero_point": [
+        -128
+      ],
+      "per_channel": false
+    }
+  ],
+  "operators": [
+    {
+      "i": 0,
+      "op": "CONV_2D",
+      "version": 3,
+      "out_shape": [
+        1,
+        96,
+        96,
+        16
+      ]
+    },
+    {
+      "i": 1,
+      "op": "MAX_POOL_2D",
+      "version": 2,
+      "out_shape": [
+        1,
+        48,
+        48,
+        16
+      ]
+    },
+    {
+      "i": 2,
+      "op": "DEPTHWISE_CONV_2D",
+      "version": 3,
+      "out_shape": [
+        1,
+        48,
+        48,
+        16
+      ]
+    },
+    {
+      "i": 3,
+      "op": "CONV_2D",
+      "version": 3,
+      "out_shape": [
+        1,
+        48,
+        48,
+        24
+      ]
+    },
+    {
+      "i": 4,
+      "op": "MAX_POOL_2D",
+      "version": 2,
+      "out_shape": [
+        1,
+        24,
+        24,
+        24
+      ]
+    },
+    {
+      "i": 5,
+      "op": "DEPTHWISE_CONV_2D",
+      "version": 3,
+      "out_shape": [
+        1,
+        24,
+        24,
+        24
+      ]
+    },
+    {
+      "i": 6,
+      "op": "CONV_2D",
+      "version": 3,
+      "out_shape": [
+        1,
+        24,
+        24,
+        32
+      ]
+    },
+    {
+      "i": 7,
+      "op": "MAX_POOL_2D",
+      "version": 2,
+      "out_shape": [
+        1,
+        12,
+        12,
+        32
+      ]
+    },
+    {
+      "i": 8,
+      "op": "DEPTHWISE_CONV_2D",
+      "version": 3,
+      "out_shape": [
+        1,
+        12,
+        12,
+        32
+      ]
+    },
+    {
+      "i": 9,
+      "op": "CONV_2D",
+      "version": 3,
+      "out_shape": [
+        1,
+        12,
+        12,
+        48
+      ]
+    },
+    {
+      "i": 10,
+      "op": "MAX_POOL_2D",
+      "version": 2,
+      "out_shape": [
+        1,
+        6,
+        6,
+        48
+      ]
+    },
+    {
+      "i": 11,
+      "op": "MEAN",
+      "version": 2,
+      "out_shape": [
+        1,
+        48
+      ]
+    },
+    {
+      "i": 12,
+      "op": "FULLY_CONNECTED",
+      "version": 4,
+      "out_shape": [
+        1,
+        24
+      ]
+    },
+    {
+      "i": 13,
+      "op": "FULLY_CONNECTED",
+      "version": 4,
+      "out_shape": [
+        1,
+        2
+      ]
+    },
+    {
+      "i": 14,
+      "op": "SOFTMAX",
+      "version": 2,
+      "out_shape": [
+        1,
+        2
+      ]
+    }
+  ],
+  "activation_tensors": 16,
+  "activation_peak_bytes_naive": 184320,
+  "activation_peak_at_op": 1,
+  "weights_bytes": 5960,
+  "interpreter": {
+    "input": {
+      "shape": [
+        1,
+        96,
+        96,
+        3
+      ],
+      "dtype": "int8",
+      "scale": 1.0,
+      "zero_point": -128
+    },
+    "output": {
+      "shape": [
+        1,
+        2
+      ],
+      "dtype": "int8",
+      "scale": 0.00390625,
+      "zero_point": -128
+    },
+    "tensor_count": 35
+  },
+  "checks": {
+    "metadata_class_names": [
+      "good",
+      "not_good"
+    ],
+    "metadata_model_bytes_match": true,
+    "metadata_input_match": true,
+    "metadata_output_match": true,
+    "header_bytes": 19136,
+    "header_identical_to_tflite": true,
+    "header_alignas16": true
+  }
+}

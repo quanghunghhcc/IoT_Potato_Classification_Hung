@@ -1,0 +1,21 @@
+models/
+
+capture.txt
+
+
+# Python virtual environment
+.venv/
+venv/
+env/
+
+# Python cache
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# IDE
+.idea/
+.vscode/
+
+# Temporary files
+*.log

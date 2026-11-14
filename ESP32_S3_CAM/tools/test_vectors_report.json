@@ -1,0 +1,147 @@
+{
+  "vectors": [
+    {
+      "name": "good/good_100.jpg (512x512)",
+      "label": 0,
+      "ref": [
+        127,
+        -128
+      ],
+      "opt": [
+        127,
+        -128
+      ],
+      "crc32": "1666946b"
+    },
+    {
+      "name": "good/good_1198.jpg (4160x3120)",
+      "label": 0,
+      "ref": [
+        127,
+        -127
+      ],
+      "opt": [
+        127,
+        -127
+      ],
+      "crc32": "7df75499"
+    },
+    {
+      "name": "good/good_1342.jpg (224x224)",
+      "label": 0,
+      "ref": [
+        127,
+        -128
+      ],
+      "opt": [
+        127,
+        -128
+      ],
+      "crc32": "b39367ee"
+    },
+    {
+      "name": "not_good/not_good_1176.jpg (512x512)",
+      "label": 1,
+      "ref": [
+        -128,
+        127
+      ],
+      "opt": [
+        -128,
+        127
+      ],
+      "crc32": "e12a5090"
+    },
+    {
+      "name": "not_good/not_good_1181.jpg (512x512)",
+      "label": 1,
+      "ref": [
+        -126,
+        126
+      ],
+      "opt": [
+        -126,
+        126
+      ],
+      "crc32": "04017b8d"
+    },
+    {
+      "name": "not_good/not_good_1187.jpg (512x512)",
+      "label": 1,
+      "ref": [
+        -128,
+        127
+      ],
+      "opt": [
+        -128,
+        127
+      ],
+      "crc32": "f6885def"
+    },
+    {
+      "name": "good/good_1599.jpg (224x224)",
+      "label": 0,
+      "ref": [
+        22,
+        -22
+      ],
+      "opt": [
+        22,
+        -22
+      ],
+      "crc32": "8b4b6eba"
+    },
+    {
+      "name": "good/good_469.jpg (512x512)",
+      "label": 0,
+      "ref": [
+        28,
+        -28
+      ],
+      "opt": [
+        22,
+        -22
+      ],
+      "crc32": "62ceacbc"
+    }
+  ],
+  "frame_source": "not_good_1176.jpg",
+  "frame_expectations": [
+    {
+      "framing": "STRETCH",
+      "crc32": "62257bb8",
+      "ref": [
+        -128,
+        127
+      ],
+      "opt": [
+        -128,
+        127
+      ]
+    },
+    {
+      "framing": "LETTERBOX",
+      "crc32": "2c8f7c9a",
+      "ref": [
+        -128,
+        127
+      ],
+      "opt": [
+        -128,
+        127
+      ]
+    },
+    {
+      "framing": "CENTER_CROP",
+      "crc32": "404e8f9e",
+      "ref": [
+        -128,
+        127
+      ],
+      "opt": [
+        -128,
+        127
+      ]
+    }
+  ]
+}

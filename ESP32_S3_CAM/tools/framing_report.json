@@ -1,0 +1,160 @@
+{
+  "modes": {
+    "TRAINING_PIPELINE": {
+      "good": {
+        "n": 277,
+        "accuracy": 0.9964,
+        "mean_p_not_good": 0.0175
+      },
+      "not_good": {
+        "n": 144,
+        "accuracy": 1.0,
+        "mean_p_not_good": 0.9916
+      },
+      "overall_accuracy": 0.9976
+    },
+    "STRETCH": {
+      "good": {
+        "n": 277,
+        "accuracy": 0.9964,
+        "mean_p_not_good": 0.0032
+      },
+      "not_good": {
+        "n": 144,
+        "accuracy": 0.9722,
+        "mean_p_not_good": 0.9514
+      },
+      "overall_accuracy": 0.9881
+    },
+    "LETTERBOX": {
+      "good": {
+        "n": 277,
+        "accuracy": 0.9964,
+        "mean_p_not_good": 0.0169
+      },
+      "not_good": {
+        "n": 144,
+        "accuracy": 1.0,
+        "mean_p_not_good": 0.9877
+      },
+      "overall_accuracy": 0.9976
+    },
+    "CENTER_CROP": {
+      "good": {
+        "n": 277,
+        "accuracy": 1.0,
+        "mean_p_not_good": 0.0012
+      },
+      "not_good": {
+        "n": 144,
+        "accuracy": 0.9028,
+        "mean_p_not_good": 0.9023
+      },
+      "overall_accuracy": 0.9667
+    }
+  },
+  "by_source": {
+    "good:512x512": {
+      "TRAINING_PIPELINE": [
+        111,
+        112
+      ],
+      "STRETCH": [
+        111,
+        112
+      ],
+      "LETTERBOX": [
+        111,
+        112
+      ],
+      "CENTER_CROP": [
+        112,
+        112
+      ]
+    },
+    "good:full-res": {
+      "TRAINING_PIPELINE": [
+        19,
+        19
+      ],
+      "STRETCH": [
+        19,
+        19
+      ],
+      "LETTERBOX": [
+        19,
+        19
+      ],
+      "CENTER_CROP": [
+        19,
+        19
+      ]
+    },
+    "good:224x224": {
+      "TRAINING_PIPELINE": [
+        146,
+        146
+      ],
+      "STRETCH": [
+        146,
+        146
+      ],
+      "LETTERBOX": [
+        146,
+        146
+      ],
+      "CENTER_CROP": [
+        146,
+        146
+      ]
+    },
+    "not_good:512x512": {
+      "TRAINING_PIPELINE": [
+        144,
+        144
+      ],
+      "STRETCH": [
+        140,
+        144
+      ],
+      "LETTERBOX": [
+        144,
+        144
+      ],
+      "CENTER_CROP": [
+        130,
+        144
+      ]
+    }
+  },
+  "probes": {
+    "solid_white_240": {
+      "pred": "not_good",
+      "p_good": 0.1445,
+      "p_not_good": 0.8555
+    },
+    "solid_light_grey_200": {
+      "pred": "not_good",
+      "p_good": 0.1953,
+      "p_not_good": 0.8047
+    },
+    "solid_concrete_grey_170": {
+      "pred": "not_good",
+      "p_good": 0.2227,
+      "p_not_good": 0.7773
+    },
+    "solid_black_0": {
+      "pred": "not_good",
+      "p_good": 0.0,
+      "p_not_good": 0.9961
+    },
+    "background_patch_from_good_images": {
+      "n": 22,
+      "pred_not_good_ratio": 0.9091
+    },
+    "background_patch_from_not_good_images": {
+      "n": 60,
+      "pred_not_good_ratio": 0.95
+    }
+  }
+}
