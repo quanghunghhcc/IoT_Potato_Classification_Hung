@@ -188,6 +188,23 @@ không có nhiễu nén, thứ tự byte/màu xác định rõ và đã được
 buffer 150 KB trong PSRAM (dư thừa với 8 MB). JPEG thêm một bước giải mã có hành vi khác decoder của TensorFlow
 và hàm `fmt2rgb888()` cho ra BGR — được hỗ trợ (`CAMERA_USE_JPEG 1`) nhưng không phải mặc định.
 
+## 6b. Gửi kết quả về backend (Wi-Fi + MQTT)
+
+1. Chạy backend trước (xem `backend/README.md`, `docker compose up -d --build`).
+2. Lấy IPv4 của máy tính bằng `ipconfig` (cùng mạng Wi-Fi 2.4 GHz với ESP32).
+3. Trong `Potato_Classifier_ESP32S3/`, sao chép `secrets.example.h` thành **`secrets.h`** và điền SSID, mật khẩu
+   Wi-Fi, `POTATO_MQTT_HOST` = IPv4 ở bước 2, `POTATO_MQTT_USERNAME/PASSWORD` = giá trị trong `backend/.env`,
+   `POTATO_DEVICE_ID` duy nhất cho mỗi bo. `secrets.h` đã được `.gitignore`.
+4. Nạp lại firmware. Log mong đợi: `[NET] Wi-Fi connected: IP ...`, `[NET] MQTT connected (status: online)`, và sau
+   mỗi lần phân loại `[NET] Result queued for MQTT`. Dashboard: http://localhost:8000.
+
+- Dùng ESP-MQTT **có sẵn trong core** (`mqtt_client.h`), không cần cài thư viện.
+- Không có `secrets.h` hoặc `ENABLE_NETWORK 0` → firmware chạy offline như trước.
+- Mạng là phần phụ: mất Wi-Fi/MQTT không ảnh hưởng phân loại/LED; tối đa `NET_QUEUE_LENGTH` = 16 kết quả chờ gửi bù.
+- Lỗi hệ thống (chụp/Invoke/output lỗi) **không** được gửi như kết quả.
+- Wi-Fi tăng dòng tiêu thụ: nếu bo reset với `Reset reason: BROWNOUT`, dùng nguồn/cáp USB tốt hơn.
+- Sketch `06_Full_System_Test` cũng gửi MQTT nếu có `secrets.h` (được `tools/sync_project.py` sao chép sang).
+
 ## 7. Kiểm thử
 
 Thứ tự: `01` PSRAM → `04` LED → `02` cảm biến → `03` camera → `05` CNN → `06` toàn hệ thống → firmware chính.

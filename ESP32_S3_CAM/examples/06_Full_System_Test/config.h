@@ -24,8 +24,9 @@
 // Cực tính tín hiệu OUT khi CÓ vật. Đa số module LM393 (FC-51...) kéo OUT xuống LOW khi có vật,
 // nhưng KHÔNG mặc định mọi module đều như vậy: kiểm tra bằng examples/02_Test_Sensor.
 #define SENSOR_ACTIVE_LEVEL LOW
-// INPUT: module đã có điện trở kéo lên riêng (thường gặp). INPUT_PULLUP/INPUT_PULLDOWN nếu cần.
-#define SENSOR_INPUT_MODE INPUT
+// INPUT_PULLUP: bật điện trở kéo lên nội của ESP32 — an toàn với module LM393 (OUT kéo xuống khi có vật),
+// và khi dây OUT bị hở thì chân đọc "không có vật" thay vì thả nổi. Dùng INPUT nếu module xuất đẩy-kéo.
+#define SENSOR_INPUT_MODE INPUT_PULLUP
 // Tín hiệu phải ổn định liên tục trong thời gian này mới được coi là "có vật".
 #define SENSOR_DEBOUNCE_MS 50
 // Tín hiệu phải "không có vật" liên tục trong thời gian này mới được coi là vật đã rời đi.
@@ -146,3 +147,18 @@ constexpr size_t ARENA_INTERNAL_RESERVE = 64 * 1024;
 #define ENABLE_SERIAL_COMMANDS 1      // lệnh 1 ký tự qua Serial Monitor (gõ h để xem)
 #define DUMP_TENSOR_EVERY_CYCLE 0     // 1 = luôn xuất tensor INT8 qua Serial (chậm, chỉ để debug)
 #define LOG_MEMORY_EVERY_CYCLE 1
+
+// ---------------------------------------------------------------------------------------------
+// Mạng: gửi kết quả về backend (thư mục backend/) qua Wi-Fi + MQTT
+// Thông tin Wi-Fi/MQTT nằm trong secrets.h (tạo từ secrets.example.h). Không có secrets.h → offline.
+// Mất mạng KHÔNG ảnh hưởng phân loại/LED; kết quả chờ trong hàng đợi và được gửi bù.
+// ---------------------------------------------------------------------------------------------
+#define ENABLE_NETWORK 1
+#define NET_TOPIC_PREFIX "agri"       // topic: agri/<device_id>/result và agri/<device_id>/status
+#define NET_QUEUE_LENGTH 16           // số kết quả giữ lại khi mất mạng
+#define NET_WIFI_RETRY_MS 15000       // thử kết nối lại Wi-Fi nếu mất quá lâu
+#define NET_ACK_TIMEOUT_MS 10000      // không nhận PUBACK trong thời gian này → gửi lại
+#define NET_MQTT_KEEPALIVE_S 30       // broker báo "offline" (Last Will) sau ~1,5 x keepalive
+#define NET_ENABLE_NTP 1              // lấy giờ UTC qua Internet cho trường "ts"
+#define NET_NTP_SERVER1 "pool.ntp.org"
+#define NET_NTP_SERVER2 "time.google.com"

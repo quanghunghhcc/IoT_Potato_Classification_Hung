@@ -103,6 +103,9 @@ bool SystemController::begin() {
     return false;
   }
   Serial.println();
+  // Mạng khởi động SAU camera + CNN để chức năng chính được ưu tiên bộ nhớ; lỗi mạng không chặn hệ thống.
+  net_.begin();
+  Serial.println();
   printMemoryInfo("MEMORY");
   Serial.println();
   goReady();
@@ -139,6 +142,7 @@ void SystemController::enterState(SystemState s) {
 void SystemController::update() {
   sensor_.update();
   leds_.update();
+  net_.loop();  // không chặn
   // Lấy thời gian SAU sensor_.update() để now >= mọi mốc thời gian cảm biến vừa ghi (tránh tràn số
   // khi tính now - lastReleaseMs).
   const uint32_t now = millis();
@@ -368,6 +372,7 @@ void SystemController::handleShowResult(uint32_t now) {
       Serial.println("[LED] UNKNOWN -> no quality LED");
     }
     printTimings();
+    net_.queueResult(result_);  // chỉ đưa vào hàng đợi, không chặn; LED đã bật trước đó
 #if LOG_MEMORY_EVERY_CYCLE
     printMemoryInfo("MEMORY");
 #endif
@@ -547,6 +552,7 @@ void SystemController::printStatus() {
                   (unsigned long)stats_.memAfterFirstCycle.psramFree, (unsigned long)now.psramFree,
                   (long)now.psramFree - (long)stats_.memAfterFirstCycle.psramFree);
   }
+  net_.printStatus();
   cnn::printSummary();
   printMemoryInfo("MEMORY");
   Serial.println("============================");

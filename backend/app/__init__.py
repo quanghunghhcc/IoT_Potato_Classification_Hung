@@ -1,0 +1,1 @@
+"""Potato classification local backend."""

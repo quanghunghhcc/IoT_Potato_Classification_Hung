@@ -1,0 +1,42 @@
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    env_file: .env
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-ec"]
+    # A LIST with one element: a plain string would be split into words by Compose and "sh -ec" would
+    # only receive "test". mosquitto_passwd -b: Mosquitto 2.1 does not read the password from a pipe.
+    command:
+      - |
+        test -n "$${MQTT_USERNAME}" && test -n "$${MQTT_PASSWORD}"
+        mkdir -p /mosquitto/data
+        rm -f /mosquitto/data/passwd
+        mosquitto_passwd -c -b /mosquitto/data/passwd "$${MQTT_USERNAME}" "$${MQTT_PASSWORD}"
+        chmod 0600 /mosquitto/data/passwd
+        chown -R mosquitto:mosquitto /mosquitto/data
+        exec mosquitto -c /mosquitto/config/mosquitto.conf
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto_data:/mosquitto/data
+
+  backend:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      DATABASE_PATH: /data/potato.sqlite3
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - backend_data:/data
+    depends_on:
+      - mosquitto
+
+volumes:
+  mosquitto_data:
+  backend_data:

@@ -19,3 +19,7 @@ __pycache__/
 
 # Temporary files
 *.log
+# Secrets (Wi-Fi / MQTT credentials)
+ESP32_S3_CAM/**/secrets.h
+backend/.env
+backend/data/

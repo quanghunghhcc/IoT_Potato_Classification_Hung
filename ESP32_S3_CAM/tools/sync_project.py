@@ -40,9 +40,12 @@ SHARED = {
                             "cnn_inference.h", "cnn_inference.cpp", "diagnostics.h", "diagnostics.cpp",
                             "image_preprocessing.h", "image_preprocessing.cpp", "led_control.h",
                             "led_control.cpp", "model_data.h", "model_data.cpp", "potato_model_data.h",
+                            "network_reporter.h", "network_reporter.cpp", "secrets.example.h",
                             "sensor_module.h", "sensor_module.cpp", "system_controller.h",
                             "system_controller.cpp"],
 }
+# Copied only when present (secrets.h is git-ignored and user-specific).
+OPTIONAL = {"06_Full_System_Test": ["secrets.h"]}
 
 
 def header_bytes(text):
@@ -119,6 +122,10 @@ def main():
         for name in files:
             src = MAIN / name
             wanted[EX / sketch / name] = wanted.get(src) or src.read_bytes()
+    for sketch, files in OPTIONAL.items():
+        for name in files:
+            if (MAIN / name).exists():
+                wanted[EX / sketch / name] = (MAIN / name).read_bytes()
 
     drift = 0
     for path, data in wanted.items():

@@ -11,6 +11,7 @@
 #include "cnn_inference.h"
 #include "diagnostics.h"
 #include "led_control.h"
+#include "network_reporter.h"
 #include "sensor_module.h"
 
 enum SystemState : uint8_t {
@@ -97,6 +98,7 @@ class SystemController {
   SensorModule sensor_;
   CameraModule camera_;
   LedControl leds_;
+  NetworkReporter net_;
   ClassificationResult result_;
 
   SystemState state_ = STATE_INIT;

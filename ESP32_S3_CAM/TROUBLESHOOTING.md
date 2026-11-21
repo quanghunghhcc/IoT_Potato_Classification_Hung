@@ -123,6 +123,21 @@ Sai `Flash Mode` (OPI với module Quad flash) cũng gây boot loop ngay sau khi
 4. Nhiều `glitch` → tăng `SENSOR_DEBOUNCE_MS`; tránh ánh nắng/đèn hồng ngoại chiếu thẳng vào cảm biến.
 5. Đo điện áp OUT (WIRING.md §2) — không được > 3,3 V.
 
+## Không gửi được kết quả về backend (MQTT)
+
+Gõ `s` và xem dòng `Network:`.
+
+| Thấy | Cách xử lý |
+|---|---|
+| `Network: off (no secrets.h)` | tạo `secrets.h` từ `secrets.example.h` trong thư mục sketch rồi nạp lại |
+| `Wi-Fi DISCONNECTED` lâu | sai SSID/mật khẩu; ESP32-S3 chỉ dùng Wi-Fi **2.4 GHz**; tránh mạng có trang đăng nhập (captive portal) |
+| Wi-Fi connected nhưng `MQTT DISCONNECTED` | `POTATO_MQTT_HOST` phải là IPv4 của máy tính (không phải `localhost`); backend phải đang chạy (`docker compose ps`); mở cổng **TCP 1883** trong Windows Firewall cho mạng Private; user/password khớp `backend/.env` |
+| `MQTT errors` tăng, broker log `not authorised` | sai `POTATO_MQTT_USERNAME/PASSWORD`; sau khi đổi `.env` chạy `docker compose up -d` |
+| Lỗi biên dịch `mqtt_client.h: No such file` | core quá cũ hoặc không phải ESP32; dùng core 3.x |
+| `queued` tăng mãi, `sent` không tăng | broker không nhận QoS 1; xem `docker compose logs mosquitto` |
+
+Dashboard vẫn báo `online` sau khi rút điện bo: chờ khoảng 45 s (1,5 × keepalive 30 s) để broker gửi Last Will.
+
 ## CNN luôn dự đoán một class
 
 Làm theo thứ tự để tách lỗi firmware khỏi giới hạn mô hình:
