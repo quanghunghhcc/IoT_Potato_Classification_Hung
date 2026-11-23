@@ -70,6 +70,11 @@ bool SystemController::begin() {
 
   // LED trước tiên: đảm bảo cả hai LED TẮT ngay khi khởi động.
   leds_.begin();
+  if (oled_.begin(OLED_SDA_PIN, OLED_SCL_PIN)) {
+    oled_.showBoot("POTATO CLASSIFIER", FW_VERSION);
+  } else {
+    Serial.println("[OLED] Disabled/unavailable; continuing without display");
+  }
 
   // PSRAM: bắt buộc cho frame buffer camera và tensor arena.
   if (!psramFound()) {
@@ -137,6 +142,21 @@ void SystemController::enterState(SystemState s) {
   state_ = s;
   stateSinceMs_ = millis();
   stateEntry_ = true;
+  if (!oled_.isReady()) return;
+  switch (s) {
+    case STATE_IDLE:
+      oled_.showReady(net_.wifiConnected() ? "ONLINE" : "OFFLINE", stats_.classifications, stats_.good,
+                      stats_.notGood);
+      break;
+    case STATE_WAIT_REMOVAL: oled_.showReady("REMOVE ITEM", stats_.classifications, stats_.good, stats_.notGood); break;
+    case STATE_OBJECT_DETECTED: oled_.showDetecting(stats_.triggers); break;
+    case STATE_CAMERA_CAPTURE:
+    case STATE_PREPROCESSING: oled_.showCapturing(stats_.triggers); break;
+    case STATE_INFERENCE: oled_.showInferring(stats_.triggers); break;
+    case STATE_ERROR: oled_.showError(errorName(error_)); break;
+    case STATE_INIT:
+    case STATE_SHOW_RESULT: break;
+  }
 }
 
 void SystemController::update() {
@@ -276,9 +296,8 @@ void SystemController::handlePreprocessing() {
   Serial.printf("[IMAGE] Original: %dx%d (%s)\n", img.width, img.height, pixelLayoutName(img.layout));
   PreprocStats st = {};
   const bool ok = cnn::preprocess(img, PREPROC_FRAMING, &st);
-  // Trả frame buffer NGAY: từ đây img.data không còn hợp lệ.
-  camera_.release();
   if (!ok) {
+    camera_.release();
     ++stats_.preprocessErrors;
     enterError(SYS_ERR_PREPROCESS, false, true);
     return;
@@ -314,6 +333,7 @@ void SystemController::handleInference() {
   Serial.println();
   Serial.println("[CNN] Running inference...");
   if (!cnn::run(result_)) {
+    camera_.release();
     ++stats_.inferenceErrors;
     enterError(result_.errorCode == CNN_ERR_OUTPUT_INVALID ? SYS_ERR_OUTPUT : SYS_ERR_INFERENCE, false, true);
     return;
@@ -372,7 +392,16 @@ void SystemController::handleShowResult(uint32_t now) {
       Serial.println("[LED] UNKNOWN -> no quality LED");
     }
     printTimings();
-    net_.queueResult(result_);  // chỉ đưa vào hàng đợi, không chặn; LED đã bật trước đó
+    const char* displayQuality = result_.predictedClass == POTATO_NOT_GOOD ? "NOT GOOD"
+                                 : result_.predictedClass == POTATO_GOOD   ? "GOOD"
+                                                                          : "UNKNOWN";
+    oled_.showResult(displayQuality, result_.confidence, result_.sequence, (float)result_.totalTimeMs);
+    const uint32_t resultUptimeMs = millis();
+    net_.queueResult(result_, resultUptimeMs);  // MQTT nhận cùng khóa sự kiện với ảnh.
+    if (net_.uploadImage(camera_.frame(), result_.sequence, resultUptimeMs)) {
+      Serial.println("[NET] Classification photo upload started");
+    }
+    camera_.release();
 #if LOG_MEMORY_EVERY_CYCLE
     printMemoryInfo("MEMORY");
 #endif

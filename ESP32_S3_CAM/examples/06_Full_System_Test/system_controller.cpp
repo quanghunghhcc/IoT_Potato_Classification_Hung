@@ -161,10 +161,14 @@ void SystemController::update() {
 
 // ---- IDLE: LED tắt, chỉ theo dõi cảm biến; không chụp, không inference ------------------------
 void SystemController::handleIdle(uint32_t now) {
-  (void)now;
   if (stateEntry_) {
     stateEntry_ = false;
     if (leds_.mode() != LED_MODE_OFF) leds_.allOff();
+  }
+  static uint32_t lastDbgMs = 0;
+  if (now - lastDbgMs >= 1000) {
+    lastDbgMs = now;
+    Serial.printf("[SENSOR] GPIO%d level = %d\n", SENSOR_PIN, digitalRead(SENSOR_PIN));
   }
   if (manualPending_) {
     manualPending_ = false;
@@ -276,9 +280,8 @@ void SystemController::handlePreprocessing() {
   Serial.printf("[IMAGE] Original: %dx%d (%s)\n", img.width, img.height, pixelLayoutName(img.layout));
   PreprocStats st = {};
   const bool ok = cnn::preprocess(img, PREPROC_FRAMING, &st);
-  // Trả frame buffer NGAY: từ đây img.data không còn hợp lệ.
-  camera_.release();
   if (!ok) {
+    camera_.release();
     ++stats_.preprocessErrors;
     enterError(SYS_ERR_PREPROCESS, false, true);
     return;
@@ -314,6 +317,7 @@ void SystemController::handleInference() {
   Serial.println();
   Serial.println("[CNN] Running inference...");
   if (!cnn::run(result_)) {
+    camera_.release();
     ++stats_.inferenceErrors;
     enterError(result_.errorCode == CNN_ERR_OUTPUT_INVALID ? SYS_ERR_OUTPUT : SYS_ERR_INFERENCE, false, true);
     return;
@@ -372,7 +376,12 @@ void SystemController::handleShowResult(uint32_t now) {
       Serial.println("[LED] UNKNOWN -> no quality LED");
     }
     printTimings();
-    net_.queueResult(result_);  // chỉ đưa vào hàng đợi, không chặn; LED đã bật trước đó
+    const uint32_t resultUptimeMs = millis();
+    net_.queueResult(result_, resultUptimeMs);  // MQTT nhận cùng khóa sự kiện với ảnh.
+    if (net_.uploadImage(camera_.frame(), result_.sequence, resultUptimeMs)) {
+      Serial.println("[NET] Classification photo upload started");
+    }
+    camera_.release();
 #if LOG_MEMORY_EVERY_CYCLE
     printMemoryInfo("MEMORY");
 #endif

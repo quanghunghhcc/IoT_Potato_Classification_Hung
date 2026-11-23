@@ -49,7 +49,7 @@ Dấu hiệu pinout đúng: log `[CAMERA] Sensor detected: OV3660 (PID 0x3660)` 
 |---|---|---|
 | VCC | **3V3** của bo (khuyến nghị) | xem cảnh báo điện áp |
 | GND | GND của bo | GND chung |
-| OUT | **GPIO14** (`SENSOR_PIN`) | mặc định active **LOW** (`SENSOR_ACTIVE_LEVEL`), kiểm tra bằng `02_Test_Sensor` |
+| OUT | **GPIO41** (`SENSOR_PIN`) | dãy chân bên phải theo sơ đồ; mặc định active **LOW** (`SENSOR_ACTIVE_LEVEL`), kiểm tra bằng `02_Test_Sensor` |
 
 Chỉnh biến trở trên module để LED của module chỉ sáng khi khoai tây ở đúng vị trí trước camera.
 
@@ -76,14 +76,46 @@ GPIO của ESP32-S3 là **3,3 V, không chịu 5 V**. Module LM393 thường có
 - Nếu đấu kiểu 3V3 → điện trở → LED → GPIO thì đặt `LED_ACTIVE_LEVEL LOW`.
 - Lỗi hệ thống: cả hai LED **nhấp nháy cùng lúc** — không bao giờ là "đỏ sáng liên tục".
 
-## 4. Nguồn và GND
+## 4. OLED 0.96 inch I2C (SSD1306/SH1106, 128x64)
+
+Driver OLED được tích hợp trong firmware, không cần cài thư viện ngoài. Với sơ đồ ESP32-S3-CAM bạn gửi, đấu như sau:
+
+| Chân OLED | Nối tới ESP32-S3-CAM | Ghi chú |
+|---|---|---|
+| VCC | **3V3** | Không nối 5V; GPIO ESP32-S3 không chịu 5V |
+| GND | **GND** | Mass chung |
+| SDA | **GPIO1** | `OLED_SDA_PIN` |
+| SCL | **GPIO47** | `OLED_SCL_PIN` |
+
+Mặc định firmware dò địa chỉ I2C `0x3C`, `0x3D` và các thiết bị khác nếu không thấy hai địa chỉ này. OLED không cắm hoặc
+không phản hồi sẽ chỉ in cảnh báo `[OLED]`; camera, phân loại và LED vẫn tiếp tục chạy. Chọn màn hình loại **I2C 4 chân**;
+module giao tiếp SPI (thường có 6/7 chân) không tương thích với cách đấu này.
+
+### Bản đồ tất cả chân được firmware sử dụng
+
+| Thiết bị/tín hiệu | GPIO | Kết nối |
+|---|---:|---|
+| Camera OV3660 XCLK | 15 | Cáp camera trên bo |
+| Camera SCCB SIOD/SIOC | 4 / 5 | Cáp camera trên bo |
+| Camera D0..D7 | 11, 9, 8, 10, 12, 18, 17, 16 | Cáp camera trên bo |
+| Camera VSYNC/HREF/PCLK | 6 / 7 / 13 | Cáp camera trên bo |
+| Cảm biến OUT | 41 | Đầu ra cảm biến (dãy chân bên phải) |
+| LED xanh / đỏ | 21 / 42 | Qua điện trở 220–330 Ω tới LED ngoài |
+| OLED SDA / SCL | 1 / 47 | Đấu theo bảng OLED ở trên |
+| USB native D−/D+ | 19 / 20 | Chỉ dùng khi bo/nạp chương trình qua USB native |
+| UART0 TX/RX | 43 / 44 | Dùng cho nạp/log trên các bo USB-UART |
+
+PWDN và RESET camera đặt `-1` (không dùng). GPIO 26–37 dành cho flash/PSRAM; không đấu thiết bị ngoài vào các chân này.
+Sơ đồ chân camera phụ thuộc nhà sản xuất, nên kiểm tra đúng phiên bản bo trước khi cấp điện.
+
+## 5. Nguồn và GND
 
 - Cấp nguồn qua cổng USB-C của bo (5 V) từ cổng USB/nguồn ≥ 1 A. Camera + PSRAM + LED có dòng đỉnh lớn; nguồn yếu
   gây reset `BROWNOUT` (firmware in `Reset reason` khi khởi động).
 - **GND chung**: GND của cảm biến, LED và bo phải nối chung.
 - Không cấp nguồn ngoài vào chân 3V3 khi đang cắm USB.
 
-## 5. GPIO không nên dùng (ESP32-S3-WROOM-1 N16R8)
+## 6. GPIO không nên dùng (ESP32-S3-WROOM-1 N16R8)
 
 | GPIO | Lý do |
 |---|---|
@@ -96,5 +128,5 @@ GPIO của ESP32-S3 là **3,3 V, không chịu 5 V**. Module LM393 thường có
 | 38–40 | thường nối khe thẻ SD trên bo kiểu Freenove |
 | 2, 48 | thường là LED/RGB LED onboard trên nhiều bo |
 
-`board_pins.h` có `static_assert` — biên dịch sẽ **báo lỗi** nếu `SENSOR_PIN`/`LED_*_PIN` trùng camera,
+`board_pins.h` có `static_assert` — biên dịch sẽ **báo lỗi** nếu GPIO cảm biến/LED/OLED trùng camera,
 Flash/PSRAM, strapping, USB, UART0, hoặc trùng nhau. Vẫn cần tự kiểm tra chân có ra header trên bo của bạn.

@@ -11,6 +11,7 @@ cd backend
 Copy-Item .env.example .env
 notepad .env
 docker compose up --build
+docker compose down -v
 ```
 
 Trong `.env`, đổi `MQTT_PASSWORD` thành mật khẩu riêng. Giữ nguyên `MQTT_USERNAME` hoặc dùng cùng một tên ở backend và firmware. Sau khi hai container khởi động, mở:

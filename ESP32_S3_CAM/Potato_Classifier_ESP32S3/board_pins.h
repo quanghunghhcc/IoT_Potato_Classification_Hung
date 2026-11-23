@@ -70,17 +70,20 @@
 #endif
 
 // ---------------------------------------------------------------------------------------------
-// Cảm biến và LED — do BẠN đấu dây. Các chân dưới đây được chọn vì (với profile mặc định):
+// Cảm biến, LED và OLED — do BẠN đấu dây. Các chân dưới đây được chọn vì (với profile mặc định):
 //   * không trùng chân camera (4-13, 15-18),
 //   * không thuộc Flash/PSRAM của WROOM-1 N16R8 (GPIO26-32 Flash/PSRAM, GPIO33-37 OPI PSRAM),
 //   * không phải chân strapping (0, 3, 45, 46), USB (19, 20) hay UART0 (43, 44),
 //   * tránh GPIO38-40 (thường nối khe SD trên bo kiểu Freenove), GPIO2/48 (LED onboard trên nhiều bo).
+// OLED I2C dùng GPIO1/GPIO47 theo sơ đồ bo người dùng cung cấp; xác minh chúng có mặt trên header thực tế.
 // Kiểm tra lại các chân này có ra header trên bo của bạn không; đổi ở đây nếu cần.
 // Các static_assert bên dưới sẽ báo lỗi biên dịch nếu chọn chân xung đột.
 // ---------------------------------------------------------------------------------------------
-#define SENSOR_PIN     14
+#define SENSOR_PIN     41
 #define LED_GREEN_PIN  21
 #define LED_RED_PIN    42
+#define OLED_SDA_PIN    1
+#define OLED_SCL_PIN   47
 
 // ---------------------------------------------------------------------------------------------
 // Kiểm tra xung đột chân lúc biên dịch
@@ -119,7 +122,12 @@ static_assert(cameraPinsSafe(), "Chan camera nam trong vung Flash/PSRAM (GPIO26-
 static_assert(safeUserPin(SENSOR_PIN), "SENSOR_PIN xung dot camera/Flash/PSRAM/strapping/USB/UART0");
 static_assert(safeUserPin(LED_GREEN_PIN), "LED_GREEN_PIN xung dot camera/Flash/PSRAM/strapping/USB/UART0");
 static_assert(safeUserPin(LED_RED_PIN), "LED_RED_PIN xung dot camera/Flash/PSRAM/strapping/USB/UART0");
-static_assert(SENSOR_PIN != LED_GREEN_PIN && SENSOR_PIN != LED_RED_PIN && LED_GREEN_PIN != LED_RED_PIN,
-              "SENSOR_PIN, LED_GREEN_PIN, LED_RED_PIN phai khac nhau");
+static_assert(safeUserPin(OLED_SDA_PIN), "OLED_SDA_PIN xung dot camera/Flash/PSRAM/strapping/USB/UART0");
+static_assert(safeUserPin(OLED_SCL_PIN), "OLED_SCL_PIN xung dot camera/Flash/PSRAM/strapping/USB/UART0");
+static_assert(SENSOR_PIN != LED_GREEN_PIN && SENSOR_PIN != LED_RED_PIN && LED_GREEN_PIN != LED_RED_PIN &&
+                  OLED_SDA_PIN != SENSOR_PIN && OLED_SDA_PIN != LED_GREEN_PIN && OLED_SDA_PIN != LED_RED_PIN &&
+                  OLED_SCL_PIN != SENSOR_PIN && OLED_SCL_PIN != LED_GREEN_PIN && OLED_SCL_PIN != LED_RED_PIN &&
+                  OLED_SDA_PIN != OLED_SCL_PIN,
+              "Sensor, LED va OLED phai dung cac GPIO khac nhau");
 }  // namespace board_pin_check
 #endif

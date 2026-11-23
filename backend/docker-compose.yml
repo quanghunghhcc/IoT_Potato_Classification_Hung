@@ -30,8 +30,9 @@ services:
       MQTT_HOST: mosquitto
       MQTT_PORT: 1883
       DATABASE_PATH: /data/potato.sqlite3
+      IMAGE_DIR: /data/images
     ports:
-      - "127.0.0.1:8000:8000"
+      - "${BACKEND_BIND_IP:-0.0.0.0}:8000:8000"
     volumes:
       - backend_data:/data
     depends_on:

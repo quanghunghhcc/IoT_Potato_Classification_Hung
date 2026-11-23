@@ -57,6 +57,15 @@ def initialize() -> None:
                 status TEXT NOT NULL,
                 last_seen TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS classification_images (
+                device_id TEXT NOT NULL,
+                sequence INTEGER NOT NULL,
+                uptime_ms INTEGER NOT NULL,
+                image_path TEXT NOT NULL,
+                received_at TEXT NOT NULL,
+                PRIMARY KEY(device_id, sequence, uptime_ms)
+            );
             """
         )
 
@@ -81,6 +90,27 @@ def insert_classification(record: dict[str, Any]) -> bool:
         return cursor.rowcount > 0
 
 
+def store_image(device_id: str, sequence: int, uptime_ms: int, image_path: str) -> None:
+    with _session() as connection:
+        connection.execute(
+            """INSERT INTO classification_images
+               (device_id, sequence, uptime_ms, image_path, received_at) VALUES (?, ?, ?, ?, ?)
+               ON CONFLICT(device_id, sequence, uptime_ms) DO UPDATE SET
+                 image_path=excluded.image_path, received_at=excluded.received_at""",
+            (device_id, sequence, uptime_ms, image_path, utc_now()),
+        )
+
+
+def fetch_image_path(device_id: str, sequence: int, uptime_ms: int) -> str | None:
+    with _session() as connection:
+        row = connection.execute(
+            """SELECT image_path FROM classification_images
+               WHERE device_id=? AND sequence=? AND uptime_ms=?""",
+            (device_id, sequence, uptime_ms),
+        ).fetchone()
+    return row["image_path"] if row else None
+
+
 def update_device_status(device_id: str, status: str, seen_at: str | None = None) -> None:
     with _session() as connection:
         connection.execute(
@@ -98,7 +128,6 @@ def fetch_summary(days: int = 7) -> dict[str, Any]:
         ).fetchall()
         counts = {"good": 0, "not_good": 0, "uncertain": 0}
         counts.update({row["quality"]: row["count"] for row in quality_rows})
-        # Group by LOCAL calendar day (received_at is UTC), e.g. "+7 hours" for Vietnam.
         offset = f"{config.LOCAL_UTC_OFFSET_HOURS:+d} hours"
         daily_rows = connection.execute(
             """SELECT date(received_at, ?) AS day, COUNT(*) AS total,
@@ -114,8 +143,11 @@ def fetch_summary(days: int = 7) -> dict[str, Any]:
             "SELECT device_id, status, last_seen FROM devices ORDER BY device_id"
         ).fetchall()
         latest = connection.execute(
-            """SELECT device_id, quality, confidence, event_time, received_at
-               FROM classifications ORDER BY id DESC LIMIT 1"""
+            """SELECT c.device_id, c.quality, c.confidence, c.sequence, c.uptime_ms, c.event_time, c.received_at,
+                      CASE WHEN i.image_path IS NULL THEN 0 ELSE 1 END AS has_image
+               FROM classifications c LEFT JOIN classification_images i
+                 ON i.device_id=c.device_id AND i.sequence=c.sequence AND i.uptime_ms=c.uptime_ms
+               ORDER BY c.id DESC LIMIT 1"""
         ).fetchone()
 
     daily = [dict(row) for row in daily_rows]
@@ -136,14 +168,22 @@ def fetch_events(limit: int = 100, offset: int = 0, quality: str | None = None) 
     with _session() as connection:
         if quality:
             rows = connection.execute(
-                """SELECT id, device_id, quality, confidence, sequence, uptime_ms, event_time, received_at
-                   FROM classifications WHERE quality=? ORDER BY id DESC LIMIT ? OFFSET ?""",
+                """SELECT c.id, c.device_id, c.quality, c.confidence, c.sequence, c.uptime_ms,
+                          c.event_time, c.received_at,
+                          CASE WHEN i.image_path IS NULL THEN 0 ELSE 1 END AS has_image
+                   FROM classifications c LEFT JOIN classification_images i
+                     ON i.device_id=c.device_id AND i.sequence=c.sequence AND i.uptime_ms=c.uptime_ms
+                   WHERE c.quality=? ORDER BY c.id DESC LIMIT ? OFFSET ?""",
                 (quality, limit, offset),
             ).fetchall()
         else:
             rows = connection.execute(
-                """SELECT id, device_id, quality, confidence, sequence, uptime_ms, event_time, received_at
-                   FROM classifications ORDER BY id DESC LIMIT ? OFFSET ?""",
+                """SELECT c.id, c.device_id, c.quality, c.confidence, c.sequence, c.uptime_ms,
+                          c.event_time, c.received_at,
+                          CASE WHEN i.image_path IS NULL THEN 0 ELSE 1 END AS has_image
+                   FROM classifications c LEFT JOIN classification_images i
+                     ON i.device_id=c.device_id AND i.sequence=c.sequence AND i.uptime_ms=c.uptime_ms
+                   ORDER BY c.id DESC LIMIT ? OFFSET ?""",
                 (limit, offset),
             ).fetchall()
     return [dict(row) for row in rows]

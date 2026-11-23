@@ -13,5 +13,9 @@
 #define POTATO_MQTT_USERNAME "potato_device"
 #define POTATO_MQTT_PASSWORD "mat_khau_trong_backend_env"
 
+// Phải khớp IMAGE_UPLOAD_TOKEN trong backend/.env
+#define POTATO_IMAGE_UPLOAD_TOKEN "same-long-token-as-backend-env"
+#define POTATO_BACKEND_PORT 8000
+
 // Duy nhất cho từng bo; chỉ dùng chữ, số, '-' hoặc '_' (không có '/').
 #define POTATO_DEVICE_ID "potato-01"

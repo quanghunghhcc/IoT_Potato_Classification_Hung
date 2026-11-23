@@ -73,15 +73,24 @@
     .table-title { padding: 20px 20px 13px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
     .filter { border: 1px solid var(--line); border-radius: 9px; background: #fff; color: var(--ink); padding: 8px 10px; font: inherit; font-size: 11px; }
     .table-scroll { overflow: auto; }
-    table { border-collapse: collapse; width: 100%; min-width: 620px; }
+    table { border-collapse: collapse; width: 100%; min-width: 680px; }
     th { color: var(--muted); text-align: left; font-size: 10px; font-weight: 650; padding: 10px 20px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: #fbfcfa; }
-    td { padding: 13px 20px; font-size: 11px; border-bottom: 1px solid #eef0eb; }
+    td { padding: 13px 20px; font-size: 11px; border-bottom: 1px solid #eef0eb; vertical-align: middle; }
     tr:last-child td { border-bottom: 0; }
     .quality { display: inline-flex; align-items: center; gap: 6px; border-radius: 99px; padding: 5px 9px; font-size: 10px; font-weight: 650; white-space: nowrap; }
     .quality.good { background: var(--green-soft); color: var(--green); }
     .quality.not_good { background: var(--red-soft); color: var(--red); }
     .quality.uncertain { background: var(--gold-soft); color: var(--gold); }
     .confidence { font-variant-numeric: tabular-nums; }
+    .thumb { width: 38px; height: 38px; object-fit: cover; border-radius: 7px; border: 1px solid var(--line); display: block; cursor: pointer; transition: transform 0.15s ease, box-shadow 0.15s ease; }
+    .thumb:hover { transform: scale(1.18); box-shadow: 0 4px 12px rgba(0,0,0,0.18); }
+    .no-img { color: var(--muted); font-size: 11px; }
+    .modal { display: none; position: fixed; z-index: 999; inset: 0; background: rgba(16, 25, 18, 0.65); backdrop-filter: blur(4px); align-items: center; justify-content: center; padding: 20px; }
+    .modal.open { display: flex; }
+    .modal-content { position: relative; max-width: 90vw; max-height: 85vh; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 24px 60px rgba(0,0,0,0.3); }
+    .modal-content img { display: block; max-width: 100%; max-height: 80vh; object-fit: contain; }
+    .modal-close { position: absolute; top: 12px; right: 12px; background: rgba(0,0,0,0.55); color: #fff; border: none; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 16px; display: grid; place-items: center; transition: background 0.15s; }
+    .modal-close:hover { background: rgba(0,0,0,0.8); }
     .footer { display: flex; justify-content: space-between; color: var(--muted); font-size: 10px; margin-top: 14px; }
     @media (max-width: 800px) {
       .shell { padding: 24px 16px 42px; }
@@ -134,10 +143,18 @@
           <option value="">Tất cả kết quả</option><option value="good">Đạt chuẩn</option><option value="not_good">Không đạt</option><option value="uncertain">Chưa chắc chắn</option>
         </select>
       </div>
-      <div class="table-scroll"><table><thead><tr><th>THỜI GIAN</th><th>THIẾT BỊ</th><th>KẾT QUẢ</th><th>ĐỘ TIN CẬY</th><th>LƯỢT</th></tr></thead><tbody id="events"><tr><td colspan="5" class="empty">Đang tải dữ liệu…</td></tr></tbody></table></div>
+      <div class="table-scroll"><table><thead><tr><th>THỜI GIAN</th><th>THIẾT BỊ</th><th>ẢNH CHỤP</th><th>KẾT QUẢ</th><th>ĐỘ TIN CẬY</th><th>LƯỢT</th></tr></thead><tbody id="events"><tr><td colspan="6" class="empty">Đang tải dữ liệu…</td></tr></tbody></table></div>
     </section>
     <div class="footer"><span id="updated">Đang tải…</span><span>Backend local · SQLite</span></div>
   </main>
+
+  <div id="image-modal" class="modal" onclick="closeModal()">
+    <div class="modal-content" onclick="event.stopPropagation()">
+      <img id="modal-img" src="" alt="Ảnh chụp camera" />
+      <button class="modal-close" onclick="closeModal()" aria-label="Đóng">✕</button>
+    </div>
+  </div>
+
   <script>
     const $ = (id) => document.getElementById(id);
     const qualityNames = {good: 'Đạt chuẩn', not_good: 'Không đạt', uncertain: 'Chưa chắc chắn'};
@@ -147,6 +164,18 @@
       const date = new Date(value);
       return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat('vi-VN', {dateStyle: 'short', timeStyle: 'medium'}).format(date);
     };
+    function showModal(ev, src) {
+      if (ev) ev.preventDefault();
+      $('modal-img').src = src;
+      $('image-modal').classList.add('open');
+    }
+    function closeModal() {
+      $('image-modal').classList.remove('open');
+      $('modal-img').src = '';
+    }
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeModal();
+    });
     async function getJson(url) {
       const response = await fetch(url, {cache: 'no-store'});
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -199,8 +228,15 @@
     }
     function renderEvents(events) {
       const root = $('events');
-      if (!events.length) { root.innerHTML = '<tr><td colspan="5" class="empty">Chưa có lượt phân loại</td></tr>'; return; }
-      root.innerHTML = events.map(e => `<tr><td>${fmtDate(e.event_time)}</td><td>${escapeHtml(e.device_id)}</td><td><span class="quality ${e.quality}">${qualityNames[e.quality] || e.quality}</span></td><td class="confidence">${(e.confidence * 100).toFixed(1)}%</td><td>${e.sequence ?? '—'}</td></tr>`).join('');
+      if (!events.length) { root.innerHTML = '<tr><td colspan="6" class="empty">Chưa có lượt phân loại</td></tr>'; return; }
+      root.innerHTML = events.map(e => {
+        const hasImg = Boolean(e.has_image && e.sequence != null && e.uptime_ms != null);
+        const imgUrl = hasImg ? `/api/images/${encodeURIComponent(e.device_id)}/${e.sequence}/${e.uptime_ms}` : '';
+        const imgHtml = hasImg
+          ? `<img src="${imgUrl}" class="thumb" alt="Ảnh lượt ${e.sequence}" loading="lazy" onclick="showModal(event, '${imgUrl}')" title="Bấm để phóng to ảnh" />`
+          : '<span class="no-img">—</span>';
+        return `<tr><td>${fmtDate(e.event_time)}</td><td>${escapeHtml(e.device_id)}</td><td>${imgHtml}</td><td><span class="quality ${e.quality}">${qualityNames[e.quality] || e.quality}</span></td><td class="confidence">${(e.confidence * 100).toFixed(1)}%</td><td>${e.sequence ?? '—'}</td></tr>`;
+      }).join('');
     }
     function escapeHtml(value) {
       return String(value).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));

@@ -12,6 +12,7 @@
 #include "diagnostics.h"
 #include "led_control.h"
 #include "network_reporter.h"
+#include "oled_module.h"
 #include "sensor_module.h"
 
 enum SystemState : uint8_t {
@@ -99,6 +100,7 @@ class SystemController {
   CameraModule camera_;
   LedControl leds_;
   NetworkReporter net_;
+  OledModule oled_;
   ClassificationResult result_;
 
   SystemState state_ = STATE_INIT;

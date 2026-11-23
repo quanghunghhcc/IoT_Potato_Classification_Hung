@@ -13,13 +13,27 @@
 #if ENABLE_NETWORK && NET_HAS_SECRETS
 #define NET_ACTIVE 1
 #include <WiFi.h>
+#include <HTTPClient.h>
+#include <WiFiClient.h>
+#include <stdlib.h>
+#include <string.h>
 #include <time.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 #include <atomic>
 
+#include "esp_camera.h"
+#include "img_converters.h"
 #include "mqtt_client.h"  // ESP-MQTT của ESP-IDF, có sẵn trong Arduino-ESP32 core 3.x
 #else
 #define NET_ACTIVE 0
+#endif
+
+#if NET_ACTIVE && defined(POTATO_IMAGE_UPLOAD_TOKEN)
+#define NET_IMAGE_UPLOAD 1
+#else
+#define NET_IMAGE_UPLOAD 0
 #endif
 
 #ifndef POTATO_DEVICE_ID
@@ -27,6 +41,9 @@
 #endif
 #ifndef POTATO_MQTT_PORT
 #define POTATO_MQTT_PORT 1883
+#endif
+#ifndef POTATO_BACKEND_PORT
+#define POTATO_BACKEND_PORT 8000
 #endif
 
 #if NET_ACTIVE
@@ -62,69 +79,101 @@ char gStatusTopic[96];
 char gResultTopic[96];
 char gUri[128];
 
+#if NET_IMAGE_UPLOAD
+std::atomic<bool> gImageUploadPending{false};
+
+struct ImageUploadJob {
+  uint8_t* jpeg;
+  size_t length;
+  uint32_t sequence;
+  uint32_t uptimeMs;
+};
+
+void imageUploadTask(void* argument) {
+  ImageUploadJob* job = static_cast<ImageUploadJob*>(argument);
+  char url[112];
+  snprintf(url, sizeof(url), "http://%s:%d/api/images", POTATO_MQTT_HOST, (int)POTATO_BACKEND_PORT);
+  char sequenceText[16], uptimeText[16];
+  snprintf(sequenceText, sizeof(sequenceText), "%lu", (unsigned long)job->sequence);
+  snprintf(uptimeText, sizeof(uptimeText), "%lu", (unsigned long)job->uptimeMs);
+  WiFiClient client;
+  HTTPClient http;
+  http.setConnectTimeout(2000);
+  http.setTimeout(3000);
+  int status = HTTPC_ERROR_CONNECTION_REFUSED;
+  if (WiFi.status() == WL_CONNECTED && http.begin(client, url)) {
+    http.addHeader("Content-Type", "image/jpeg");
+    http.addHeader("X-Upload-Token", POTATO_IMAGE_UPLOAD_TOKEN);
+    http.addHeader("X-Device-ID", POTATO_DEVICE_ID);
+    http.addHeader("X-Sequence", sequenceText);
+    http.addHeader("X-Uptime-Ms", uptimeText);
+    status = http.POST(job->jpeg, job->length);
+    http.end();
+  }
+  if (status == 201) Serial.printf("[NET] Image uploaded for seq=%lu\n", (unsigned long)job->sequence);
+  else Serial.printf("[NET] Image upload failed (HTTP %d)\n", status);
+  free(job->jpeg);
+  free(job);
+  gImageUploadPending.store(false);
+  vTaskDelete(nullptr);
+}
+#endif
+
 void mqttEventHandler(void*, esp_event_base_t, int32_t eventId, void* eventData) {
   const esp_mqtt_event_handle_t ev = static_cast<esp_mqtt_event_handle_t>(eventData);
-  switch (static_cast<esp_mqtt_event_id_t>(eventId)) {
+  switch (eventId) {
     case MQTT_EVENT_CONNECTED:
-      gMqttConnected = true;
-      ++gMqttConnects;
-      // QoS 0 cho "online" để sự kiện PUBLISHED chỉ thuộc về bản tin kết quả (QoS 1).
-      esp_mqtt_client_publish(ev->client, gStatusTopic, "online", 0, 0, 1);
+      gMqttConnected.store(true);
+      gMqttConnects.fetch_add(1);
       break;
     case MQTT_EVENT_DISCONNECTED:
-      gMqttConnected = false;
+      gMqttConnected.store(false);
       break;
     case MQTT_EVENT_PUBLISHED:
-      gAckedMsgId = ev->msg_id;
+      gAckedMsgId.store(ev->msg_id);
       break;
     case MQTT_EVENT_ERROR:
-      ++gMqttErrors;
+      gMqttErrors.fetch_add(1);
       break;
     default:
       break;
   }
 }
 
-void startMqtt() {
-  esp_mqtt_client_config_t cfg = {};
-  cfg.broker.address.uri = gUri;
-  cfg.credentials.client_id = POTATO_DEVICE_ID;
-  cfg.credentials.username = POTATO_MQTT_USERNAME;
-  cfg.credentials.authentication.password = POTATO_MQTT_PASSWORD;
-  cfg.session.keepalive = NET_MQTT_KEEPALIVE_S;
-  cfg.session.last_will.topic = gStatusTopic;
-  cfg.session.last_will.msg = "offline";
-  cfg.session.last_will.msg_len = 7;
-  cfg.session.last_will.qos = 1;
-  cfg.session.last_will.retain = 1;
-  cfg.network.reconnect_timeout_ms = 5000;
-  cfg.network.timeout_ms = 5000;
-
-  gClient = esp_mqtt_client_init(&cfg);
-  if (gClient == nullptr) {
-    Serial.println("[NET] ERROR: esp_mqtt_client_init failed");
-    return;
-  }
-  esp_mqtt_client_register_event(gClient, MQTT_EVENT_ANY, mqttEventHandler, nullptr);
-  if (esp_mqtt_client_start(gClient) != ESP_OK) {
-    Serial.println("[NET] ERROR: esp_mqtt_client_start failed");
-    return;
-  }
-  gMqttStarted = true;
-  Serial.printf("[NET] MQTT client started -> %s (user %s, client id %s)\n", gUri, POTATO_MQTT_USERNAME,
-                POTATO_DEVICE_ID);
-}
-
 void popQueue() {
+  if (gCount == 0) return;
   gHead = (gHead + 1) % NET_QUEUE_LENGTH;
   --gCount;
 }
 
 }  // namespace
-#endif  // NET_ACTIVE
+#endif
 
-bool NetworkReporter::enabled() const { return NET_ACTIVE != 0; }
-const char* NetworkReporter::deviceId() const { return POTATO_DEVICE_ID; }
+void NetworkReporter::begin() {
+#if NET_ACTIVE
+  WiFi.mode(WIFI_STA);
+  WiFi.setAutoReconnect(true);
+  WiFi.begin(POTATO_WIFI_SSID, POTATO_WIFI_PASSWORD);
+  gWifiLastBeginMs = millis();
+  Serial.printf("[NET] Wi-Fi starting (SSID: %s, device: %s)\n", POTATO_WIFI_SSID, POTATO_DEVICE_ID);
+#if !NET_IMAGE_UPLOAD
+  Serial.println("[NET] Photo upload disabled: add POTATO_IMAGE_UPLOAD_TOKEN to secrets.h");
+#endif
+  snprintf(gStatusTopic, sizeof(gStatusTopic), "%s/%s/status", NET_TOPIC_PREFIX, POTATO_DEVICE_ID);
+  snprintf(gResultTopic, sizeof(gResultTopic), "%s/%s/result", NET_TOPIC_PREFIX, POTATO_DEVICE_ID);
+  snprintf(gUri, sizeof(gUri), "mqtt://%s:%d", POTATO_MQTT_HOST, POTATO_MQTT_PORT);
+#else
+  Serial.println(ENABLE_NETWORK ? "[NET] Network disabled: no secrets.h" : "[NET] Network disabled by config");
+#endif
+}
+
+bool NetworkReporter::enabled() const {
+#if NET_ACTIVE
+  return true;
+#else
+  return false;
+#endif
+}
 
 bool NetworkReporter::wifiConnected() const {
 #if NET_ACTIVE
@@ -136,73 +185,93 @@ bool NetworkReporter::wifiConnected() const {
 
 bool NetworkReporter::mqttConnected() const {
 #if NET_ACTIVE
-  return gMqttConnected;
+  return gMqttConnected.load();
 #else
   return false;
 #endif
 }
 
-void NetworkReporter::begin() {
-#if !ENABLE_NETWORK
-  Serial.println("[NET] Network disabled (ENABLE_NETWORK = 0) -> offline mode");
-#elif !NET_HAS_SECRETS
-  Serial.println("[NET] secrets.h not found -> offline mode (copy secrets.example.h to secrets.h to enable MQTT)");
+const char* NetworkReporter::deviceId() const {
+#if NET_ACTIVE
+  return POTATO_DEVICE_ID;
 #else
-  snprintf(gStatusTopic, sizeof(gStatusTopic), "%s/%s/status", NET_TOPIC_PREFIX, POTATO_DEVICE_ID);
-  snprintf(gResultTopic, sizeof(gResultTopic), "%s/%s/result", NET_TOPIC_PREFIX, POTATO_DEVICE_ID);
-  snprintf(gUri, sizeof(gUri), "mqtt://%s:%d", POTATO_MQTT_HOST, (int)POTATO_MQTT_PORT);
-  Serial.printf("[NET] Device ID: %s, topics %s | %s\n", POTATO_DEVICE_ID, gStatusTopic, gResultTopic);
-  Serial.printf("[NET] Connecting Wi-Fi \"%s\" (non-blocking)...\n", POTATO_WIFI_SSID);
-  WiFi.mode(WIFI_STA);
-  WiFi.setHostname(POTATO_DEVICE_ID);
-  WiFi.setAutoReconnect(true);
-  WiFi.begin(POTATO_WIFI_SSID, POTATO_WIFI_PASSWORD);
-  gWifiLastBeginMs = millis();
+  return "disabled";
 #endif
 }
 
 void NetworkReporter::loop() {
 #if NET_ACTIVE
   const uint32_t now = millis();
-  const bool wifiUp = WiFi.status() == WL_CONNECTED;
+  const bool wifiUp = (WiFi.status() == WL_CONNECTED);
 
-  if (wifiUp != gWifiWasConnected) {
-    gWifiWasConnected = wifiUp;
-    if (wifiUp) {
-      Serial.printf("[NET] Wi-Fi connected: IP %s, RSSI %d dBm\n", WiFi.localIP().toString().c_str(),
-                    (int)WiFi.RSSI());
-#if NET_ENABLE_NTP
-      if (!gNtpStarted) {
-        configTime(0, 0, NET_NTP_SERVER1, NET_NTP_SERVER2);  // giờ UTC; không có Internet thì bỏ "ts"
-        gNtpStarted = true;
-      }
-#endif
-      if (!gMqttStarted) startMqtt();  // ESP-MQTT tự kết nối lại sau đó
-    } else {
-      Serial.println("[NET] Wi-Fi disconnected (classification continues offline)");
+  if (wifiUp && !gWifiWasConnected) {
+    gWifiWasConnected = true;
+    Serial.printf("[NET] Wi-Fi connected, IP %s, RSSI %d dBm\n", WiFi.localIP().toString().c_str(), (int)WiFi.RSSI());
+    if (!gNtpStarted) {
+      configTime(0, 0, "pool.ntp.org", "time.google.com", nullptr);
+      gNtpStarted = true;
     }
+  } else if (!wifiUp && gWifiWasConnected) {
+    gWifiWasConnected = false;
+    Serial.println("[NET] Wi-Fi lost");
   }
-  // Dự phòng khi auto-reconnect không tự hồi phục.
-  if (!wifiUp && now - gWifiLastBeginMs >= NET_WIFI_RETRY_MS) {
+
+  if (!wifiUp && (now - gWifiLastBeginMs > 30000)) {
     gWifiLastBeginMs = now;
     ++gWifiReconnects;
     WiFi.disconnect();
     WiFi.begin(POTATO_WIFI_SSID, POTATO_WIFI_PASSWORD);
   }
 
-  const bool mqttUp = gMqttConnected;
-  if (mqttUp != gLastMqttState) {
-    gLastMqttState = mqttUp;
-    Serial.println(mqttUp ? "[NET] MQTT connected (status: online)" : "[NET] MQTT disconnected");
+  if (wifiUp && !gMqttStarted) {
+    esp_mqtt_client_config_t cfg = {};
+    cfg.broker.address.uri = gUri;
+    cfg.credentials.client_id = POTATO_DEVICE_ID;
+#ifdef POTATO_MQTT_USERNAME
+    if (strlen(POTATO_MQTT_USERNAME) > 0) cfg.credentials.username = POTATO_MQTT_USERNAME;
+#endif
+#ifdef POTATO_MQTT_PASSWORD
+    if (strlen(POTATO_MQTT_PASSWORD) > 0) cfg.credentials.authentication.password = POTATO_MQTT_PASSWORD;
+#endif
+    cfg.session.keepalive = 30;
+    cfg.session.last_will.topic = gStatusTopic;
+    cfg.session.last_will.msg = "offline";
+    cfg.session.last_will.msg_len = 7;
+    cfg.session.last_will.qos = 1;
+    cfg.session.last_will.retain = 1;
+    cfg.network.reconnect_timeout_ms = 5000;
+
+    gClient = esp_mqtt_client_init(&cfg);
+    if (gClient != nullptr) {
+      esp_mqtt_client_register_event(gClient, static_cast<esp_mqtt_event_id_t>(ESP_EVENT_ANY_ID),
+                                     mqttEventHandler, nullptr);
+      esp_mqtt_client_start(gClient);
+      gMqttStarted = true;
+      Serial.printf("[NET] ESP-MQTT client started -> %s\n", gUri);
+    } else {
+      Serial.println("[NET] ERROR: esp_mqtt_client_init failed");
+    }
   }
 
-  // Gửi hàng đợi: tối đa 1 bản tin đang chờ PUBACK.
-  if (gInflightMsgId >= 0) {
-    if (gAckedMsgId == gInflightMsgId) {
-      popQueue();
-      ++gSent;
+  const bool mqttUp = gMqttConnected.load();
+  if (mqttUp != gLastMqttState) {
+    gLastMqttState = mqttUp;
+    if (mqttUp) {
+      Serial.println("[NET] MQTT broker connected");
+      esp_mqtt_client_publish(gClient, gStatusTopic, "online", 6, 1, 1);
+    } else {
+      Serial.println("[NET] MQTT broker disconnected");
       gInflightMsgId = -1;
-    } else if (!mqttUp || now - gInflightSinceMs >= NET_ACK_TIMEOUT_MS) {
+    }
+  }
+
+  const int acked = gAckedMsgId.exchange(-1);
+  if (acked >= 0 && acked == gInflightMsgId) {
+    gInflightMsgId = -1;
+    popQueue();
+    ++gSent;
+  } else if (gInflightMsgId >= 0) {
+    if (!mqttUp || (now - gInflightSinceMs > 8000)) {
       gInflightMsgId = -1;  // gửi lại sau; backend tự bỏ bản trùng
     }
   }
@@ -216,7 +285,7 @@ void NetworkReporter::loop() {
 #endif
 }
 
-bool NetworkReporter::queueResult(const ClassificationResult& r) {
+bool NetworkReporter::queueResult(const ClassificationResult& r, uint32_t uptimeMs) {
 #if NET_ACTIVE
   if (!r.success) return false;  // lỗi hệ thống không phải là kết quả
   const char* quality = r.predictedClass == POTATO_GOOD       ? "good"
@@ -249,7 +318,7 @@ bool NetworkReporter::queueResult(const ClassificationResult& r) {
                          "{\"device\":\"%s\",\"quality\":\"%s\",\"confidence\":%.4f,\"seq\":%lu,\"uptime_ms\":%lu%s,"
                          "\"p_good\":%.4f,\"p_not_good\":%.4f,\"raw\":[%d,%d],\"capture_ms\":%.1f,\"pre_ms\":%.1f,"
                          "\"inf_ms\":%.1f,\"fw\":\"%s\"}",
-                         POTATO_DEVICE_ID, quality, confidence, (unsigned long)r.sequence, (unsigned long)millis(), ts,
+                         POTATO_DEVICE_ID, quality, confidence, (unsigned long)r.sequence, (unsigned long)uptimeMs, ts,
                          r.goodProbability, r.notGoodProbability, r.rawGood, r.rawNotGood,
                          r.captureTimeUs / 1000.0f, r.preprocessTimeUs / 1000.0f, r.inferenceTimeUs / 1000.0f,
                          FW_VERSION);
@@ -260,6 +329,57 @@ bool NetworkReporter::queueResult(const ClassificationResult& r) {
   return true;
 #else
   (void)r;
+  (void)uptimeMs;
+  return false;
+#endif
+}
+
+bool NetworkReporter::uploadImage(const camera_fb_t* frame, uint32_t sequence, uint32_t uptimeMs) {
+#if NET_IMAGE_UPLOAD
+  if (frame == nullptr || WiFi.status() != WL_CONNECTED) return false;
+  bool expected = false;
+  if (!gImageUploadPending.compare_exchange_strong(expected, true)) {
+    Serial.println("[NET] Previous photo is still uploading; skipping this image");
+    return false;
+  }
+  uint8_t* jpeg = nullptr;
+  size_t jpegLength = 0;
+  const bool allocated = frame->format != PIXFORMAT_JPEG;
+  if (allocated) {
+    if (!fmt2jpg(frame->buf, frame->len, frame->width, frame->height, frame->format, 80, &jpeg, &jpegLength)) {
+      Serial.println("[NET] JPEG compression failed; image not uploaded");
+      gImageUploadPending.store(false);
+      return false;
+    }
+  } else {
+    jpeg = static_cast<uint8_t*>(malloc(frame->len));
+    if (jpeg == nullptr) {
+      gImageUploadPending.store(false);
+      return false;
+    }
+    memcpy(jpeg, frame->buf, frame->len);
+    jpegLength = frame->len;
+  }
+  ImageUploadJob* job = static_cast<ImageUploadJob*>(malloc(sizeof(ImageUploadJob)));
+  if (job == nullptr) {
+    free(jpeg);
+    gImageUploadPending.store(false);
+    return false;
+  }
+  *job = {jpeg, jpegLength, sequence, uptimeMs};
+  if (xTaskCreate(imageUploadTask, "photo-upload", 8192, job, 1, nullptr) != pdPASS) {
+    free(jpeg);
+    free(job);
+    gImageUploadPending.store(false);
+    Serial.println("[NET] Could not start photo upload task");
+    return false;
+  }
+  Serial.printf("[NET] Photo upload queued for seq=%lu\n", (unsigned long)sequence);
+  return true;
+#else
+  (void)frame;
+  (void)sequence;
+  (void)uptimeMs;
   return false;
 #endif
 }

@@ -2,7 +2,7 @@
 //
 // * Khởi tạo một lần trong setup(), tái sử dụng cho mọi lần chụp. Không stream, không web server.
 // * Chỉ chụp khi được gọi capture() (do state machine gọi khi cảm biến phát hiện vật).
-// * Frame buffer nằm trong PSRAM, fb_count = 1. Phải gọi release() ngay sau khi tiền xử lý xong;
+// * Frame buffer nằm trong PSRAM, fb_count = 1. Giữ frame tới sau inference để gửi ảnh rồi gọi release();
 //   sau release() mọi con trỏ tới dữ liệu frame đều KHÔNG còn hợp lệ.
 #pragma once
 

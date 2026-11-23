@@ -18,6 +18,9 @@
 // Thời gian tối đa chờ Serial (USB CDC) sẵn sàng khi khởi động, không chặn vô hạn.
 #define SERIAL_WAIT_MS 2000
 
+// OLED I2C SSD1306 128x64 (GPIO nằm trong board_pins.h).
+#define ENABLE_OLED 1
+
 // ---------------------------------------------------------------------------------------------
 // Cảm biến Obstacle Avoidance V1
 // ---------------------------------------------------------------------------------------------

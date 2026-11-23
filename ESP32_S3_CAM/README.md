@@ -1,9 +1,9 @@
 # ESP32-S3 AI Potato Quality Classification System
 
 Firmware Arduino cho **ESP32-S3-CAM (ESP32-S3-WROOM-1 N16R8) + camera OV3660 + cảm biến Obstacle Avoidance V1 +
-2 LED**. Khi cảm biến phát hiện khoai tây, camera chụp một ảnh, ESP32-S3 chạy **CNN INT8 (`models/potato_int8.tflite`)
+2 LED + OLED I2C 0.96 inch tùy chọn**. Khi cảm biến phát hiện khoai tây, camera chụp một ảnh, ESP32-S3 chạy **CNN INT8 (`models/potato_int8.tflite`)
 bằng TensorFlow Lite Micro ngay trên chip**, rồi bật LED xanh (GOOD) hoặc đỏ (NOT_GOOD). Hoạt động hoàn toàn
-offline: không Wi-Fi, không server, không cần máy tính sau khi nạp.
+offline ở phần phân loại; có thể bật Wi-Fi/MQTT để gửi kết quả và ảnh về backend. OLED hiển thị trạng thái và kết quả.
 
 Tài liệu đi kèm: [WIRING.md](WIRING.md) · [MODEL_INFO.md](MODEL_INFO.md) · [TESTING.md](TESTING.md) ·
 [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
@@ -66,6 +66,7 @@ ESP32_S3_CAM/
 │   ├── image_preprocessing.h/.cpp      RGB565→INT8 96×96 (khớp Python bit-exact)
 │   ├── cnn_inference.h/.cpp            TFLM: kiểm tra model, resolver 6 op, arena, Invoke, hậu xử lý
 │   ├── led_control.h/.cpp              LED + chỉ báo lỗi riêng biệt
+│   ├── oled_module.h/.cpp              OLED SSD1306/SH1106 I2C, không cần thư viện ngoài
 │   ├── diagnostics.h/.cpp              CRC32, dump base64, thông tin bộ nhớ
 │   ├── model_data.h / model_data.cpp   khai báo extern + TU duy nhất include model
 │   └── potato_model_data.h             BẢN SAO NGUYÊN VĂN models/potato_model_data.h
@@ -157,6 +158,19 @@ Không có cấu hình USB nào đúng cho mọi bo: nếu không thấy log, đ
 [SYSTEM] READY
 [SYSTEM] Waiting for potato...
 ```
+
+### 5.8 Demo OLED và phân loại
+
+1. Đấu OLED I2C 4 chân theo [WIRING.md](WIRING.md#4-oled-096-inch-i2c-ssd1306sh1106-128x64): VCC→3V3, GND→GND,
+   SDA→GPIO1, SCL→GPIO47. OLED dùng driver tích hợp, không cần cài thư viện Arduino ngoài.
+2. Mở sketch `ESP32_S3_CAM/Potato_Classifier_ESP32S3/Potato_Classifier_ESP32S3.ino`, chọn board/PSRAM/Flash như mục 5,
+   nhấn **Verify**, rồi **Upload**. OLED bật sẵn qua `ENABLE_OLED 1` trong `config.h`.
+3. Mở Serial Monitor ở **115200 baud**. Màn hình hiện trạng thái khởi động, chờ khoai, đang chụp/nhận dạng và kết quả
+   `GOOD`, `NOT GOOD` hoặc `UNKNOWN` cùng độ tin cậy. Đặt khoai trước cảm biến để chạy tự động.
+4. Để demo không cần cảm biến, gửi ký tự `m` trong Serial Monitor khi màn hình đang ở trạng thái chờ; firmware chụp và
+   phân loại ngay. Lấy vật khỏi vùng cảm biến trước lần chạy tiếp theo.
+5. Kết quả vẫn được in ở Serial Monitor và điều khiển LED xanh/đỏ. Nếu OLED không được nối, xem log `[OLED]` để kiểm tra;
+   phần phân loại vẫn tiếp tục.
 
 ## 6. Sử dụng
 
